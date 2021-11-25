@@ -1,7 +1,8 @@
 use std::convert::TryInto;
 
+use cblas::Layout::ColumnMajor;
+use cblas::Transpose;
 use num_complex::Complex64;
-use blas::zgemm;
 
 pub trait Matrix<Prec> {
     fn presicion(&self) -> Presicion;
@@ -22,8 +23,8 @@ pub enum Presicion {
 }
 
 pub struct ComplexDoubleMatrix {
-    size: [u32; 2],
-    data: Vec<Complex64>,
+    pub size: [u32; 2],
+    pub data: Vec<Complex64>,
 }
 
 impl Matrix<Complex64> for ComplexDoubleMatrix {
@@ -34,18 +35,19 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
         self.size
     }
     fn multiplicate<M: Matrix<Complex64>>(&self, other: M) -> Self {
-        use blas::zgemm;
+        use cblas::zgemm;
         let [m, k] = other.size();
         let [k1, n] = self.size;
         if k != k1 {
             panic!("Not correct matrix dimension");
         }
-        let mut ans: Vec<Complex64> = vec![Complex64::from(0.); (m * k).try_into().unwrap()];
+        let mut ans: Vec<Complex64> = vec![Complex64::from(0.); (m * n).try_into().unwrap()];
 
         unsafe {
             zgemm(
-                b'N',
-                b'N',
+                ColumnMajor,
+                Transpose::None,
+                Transpose::None,
                 m as i32,
                 n as i32,
                 k as i32,
@@ -66,7 +68,7 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
     }
 
     fn data(&self) -> &Vec<Complex64> {
-        todo!()
+        &self.data
     }
 
     fn tensor_product<M: Matrix<Complex64>>(&self, other: M) -> Self {
@@ -74,7 +76,10 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
     }
 
     fn at(&self, i: u32, j: u32) -> Complex64 {
-        todo!()
+        if i >= self.size[0] || j >= self.size[1] {
+            panic!("Overflow");
+        }
+        self.data[(j*self.size[0]+i) as usize]
     }
 
     fn row(&self, i: u32) -> Vec<Complex64> {
@@ -82,15 +87,16 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
     }
 
     fn col(&self, j: u32) -> Vec<Complex64> {
-        todo!()
+        self.data()[((j*self.size[0]) as usize)..(((j+1)*self.size[0]) as usize)].to_vec()
     }
 }
 
-pub struct QuatOper<T> {
-    operType: GateType<T>,
+pub(crate) struct QuatOper<T> {
+    pub(crate) operand: Vec<u32>,
+    pub(crate) oper_type: GateType<T>,
 }
 
-pub enum GateType<T> {
+pub(crate) enum GateType<T> {
     X,
     Y,
     Z,
@@ -101,12 +107,12 @@ pub enum GateType<T> {
 
 #[cfg(test)]
 mod tests {
-    use num_complex::{Complex, Complex64};
+    use num_complex::{Complex64};
 
     use crate::{ComplexDoubleMatrix, Matrix};
 
     #[test]
-    fn multiplicate() {
+    fn test_mul() {
         let A = ComplexDoubleMatrix {
             size: [2, 3],
             data: vec![
@@ -133,8 +139,55 @@ mod tests {
                 4.0.into(),
                 8.0.into(),
                 12.0.into(),
-            ]};
-        let C = A.multiplicate(B);
-        assert_eq!(Complex64::from(40.0), C.data()[0]);
+            ],
+        };
+        let C = B.multiplicate(A);
+        let ans: Vec<Complex64> = vec![
+            38.0.into(),
+            83.0.into(),
+            44.0.into(),
+            98.0.into(),
+            50.0.into(),
+            113.0.into(),
+            56.0.into(),
+            128.0.into(),
+        ];
+        assert_eq!(&ans, C.data());
+    }
+    #[test]
+    fn test_at() {
+        let A = ComplexDoubleMatrix {
+            size: [2, 3],
+            data: vec![
+                1.0.into(),
+                4.0.into(),
+                2.0.into(),
+                5.0.into(),
+                3.0.into(),
+                6.0.into(),
+            ],
+        };
+        assert_eq!(A.at(0,0), Complex64::from(1.0));
+        assert_eq!(A.at(1,0), Complex64::from(4.0));
+        assert_eq!(A.at(0,1), Complex64::from(2.0));
+    }
+    #[test]
+    fn test_col() {
+        let A = ComplexDoubleMatrix {
+            size: [2, 3],
+            data: vec![
+                1.0.into(),
+                4.0.into(),
+                2.0.into(),
+                5.0.into(),
+                3.0.into(),
+                6.0.into(),
+            ],
+        };
+        let ans: Vec<Complex64> = vec![
+            2.0.into(),
+            5.0.into(),
+        ];
+        assert_eq!(A.col(1), ans);
     }
 }

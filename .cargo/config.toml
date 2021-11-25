@@ -1,2 +1,5 @@
 [build]
-# rustflags = ["-C target-feature=+crt-static"]        # custom flags to pass to all compiler invocations
+rustflags = [
+    "-LD:\\Code\\vcpkg\\installed\\x64-windows-static\\lib", 
+    "-lstatic=openblas"
+    ]
