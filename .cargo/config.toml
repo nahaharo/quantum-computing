@@ -1,5 +1,0 @@
-[build]
-rustflags = [
-    "-LC:\\Users\\Hyunwook Ha\\code\\vcpkg\\installed\\x64-windows-static\\lib", 
-    "-lstatic=openblas"
-    ]
