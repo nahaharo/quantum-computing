@@ -106,7 +106,12 @@ impl Executer<Complex64> {
             }
             acc
         });
-        println!("{:?}", val);
+        self.state = Box::new(
+            ComplexDoubleMatrix {
+                size: self.state.size(),
+                data: val
+            }
+        )
     }
 }
 
@@ -158,28 +163,34 @@ mod tests {
                     size: [16, 1],
                     data: vec![
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
+                        Complex64::from(0.0),
                         Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0),
-                        Complex64::from(1.0)
+                        Complex64::from(0.0)
                     ]
                 }
             )
         };
         exc.apply(QuantumOper{
-            operand: vec![1],
+            operand: vec![0],
             oper_type: GateType::H,
-        })
+        });
+        println!("{:?}", &exc.state.data());
+        exc.apply(QuantumOper{
+            operand: vec![0],
+            oper_type: GateType::H,
+        });
+        println!("{:?}", &exc.state.data());
     }
 }
