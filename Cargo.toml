@@ -10,6 +10,10 @@ cblas = "*"
 openblas-src = {git="https://github.com/blas-lapack-rs/openblas-src", features = ["system", "static"]}
 num-complex = "*"
 
+[profile.dev]
+opt-level = 0               # Use slightly better optimizations.
+overflow-checks = false     # Disable integer overflow checks.
+
 [[example]]
 name = "example1"
 path = "examples/example1.rs"

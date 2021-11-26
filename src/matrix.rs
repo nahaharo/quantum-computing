@@ -4,16 +4,20 @@ use cblas::Layout::ColumnMajor;
 use cblas::Transpose;
 use num_complex::Complex64;
 
-pub trait Matrix<Prec> {
+pub type BoxMatrix<T> = Box<dyn Matrix<Prec = T>>;
+
+pub trait Matrix {
+    type Prec;
+
     fn presicion(&self) -> Presicion;
     fn size(&self) -> [u32; 2];
-    fn data(&self) -> &Vec<Prec>;
-    fn mul<M: Matrix<Prec>>(&self, other: M) -> Self;
-    fn scalmul(&self, scalar: Complex64) -> Self;
-    fn kron<M: Matrix<Prec>>(&self, other: M) -> Self;
-    fn at(&self, i: u32, j: u32) -> Prec;
-    fn row(&self, i: u32) -> Vec<Prec>;
-    fn col(&self, j: u32) -> Vec<Prec>;
+    fn data(&self) -> &Vec<Self::Prec>;
+    fn mul(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec>;
+    fn scalmul(&self, scalar: Complex64) -> BoxMatrix<Self::Prec>;
+    fn kron(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec>;
+    fn at(&self, i: u32, j: u32) -> Self::Prec;
+    fn row(&self, i: u32) -> Vec<Self::Prec>;
+    fn col(&self, j: u32) -> Vec<Self::Prec>;
 }
 
 pub enum Presicion {
@@ -23,12 +27,15 @@ pub enum Presicion {
     DoubleComplex,
 }
 
+#[derive(Debug)]
 pub struct ComplexDoubleMatrix {
     pub size: [u32; 2],
     pub data: Vec<Complex64>,
 }
 
-impl Matrix<Complex64> for ComplexDoubleMatrix {
+impl Matrix for ComplexDoubleMatrix {
+    type Prec = Complex64;
+
     fn presicion(&self) -> Presicion {
         Presicion::DoubleComplex
     }
@@ -36,22 +43,22 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
         self.size
     }
 
-    fn scalmul(&self, scalar: Complex64) -> Self {
+    fn scalmul(&self, scalar: Complex64) -> BoxMatrix<Self::Prec> {
         use cblas::zscal;
         let mut ans = self.data.clone();
         unsafe {
             zscal((self.size[0] * self.size[1]) as i32, scalar, &mut *ans, 1);
         }
-        ComplexDoubleMatrix {
+        Box::new(ComplexDoubleMatrix {
             size: self.size,
             data: ans,
-        }
+        })
     }
 
-    fn mul<M: Matrix<Complex64>>(&self, other: M) -> Self {
+    fn mul(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec> {
         use cblas::zgemm;
-        let [m, k] = other.size();
-        let [k1, n] = self.size;
+        let [m, k] = self.size;
+        let [k1, n] = other.size();
         if k != k1 {
             panic!("Not correct matrix dimension");
         }
@@ -66,27 +73,28 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
                 n as i32,
                 k as i32,
                 Complex64::from(1.0),
-                &**other.data(),
-                m as i32,
                 &*self.data,
+                m as i32,
+                &**other.data(),
                 k as i32,
                 Complex64::from(1.0),
                 &mut ans,
                 m as i32,
             );
         }
-        return ComplexDoubleMatrix {
-            size: [m, k],
+        Box::new(ComplexDoubleMatrix {
+            size: [m, n],
             data: ans,
-        };
+        })
     }
 
     fn data(&self) -> &Vec<Complex64> {
         &self.data
     }
 
-    fn kron<M: Matrix<Complex64>>(&self, other: M) -> Self {
-        let mut ans: Vec<Complex64> = vec![Complex64::from(0.); self.data.len() * other.data().len()];
+    fn kron(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec> {
+        let mut ans: Vec<Complex64> =
+            vec![Complex64::from(0.); self.data.len() * other.data().len()];
         let [n1, m1] = self.size;
         let [n2, m2] = other.size();
         for i1 in 0..n1 {
@@ -95,19 +103,20 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
                     for j2 in 0..m2 {
                         let i = i1 * n2 + i2;
                         let j = j1 * m2 + j2;
-                        ans[(i+(n1*n2)*j) as usize] = self.data[(i1+n1*j1) as usize]*other.data()[(i2+n2*j2) as usize];
+                        ans[(i + (n1 * n2) * j) as usize] = self.data[(i1 + n1 * j1) as usize]
+                            * other.data()[(i2 + n2 * j2) as usize];
                     }
                 }
             }
         }
 
-        ComplexDoubleMatrix {
+        Box::new(ComplexDoubleMatrix {
             size: [
                 self.size[0] * other.size()[0],
                 self.size[1] * other.size()[1],
             ],
             data: ans,
-        }
+        })
     }
 
     fn at(&self, i: u32, j: u32) -> Complex64 {
@@ -137,20 +146,6 @@ impl Matrix<Complex64> for ComplexDoubleMatrix {
     }
 }
 
-pub(crate) struct QuatOper<T> {
-    pub(crate) operand: Vec<u32>,
-    pub(crate) oper_type: GateType<T>,
-}
-
-pub(crate) enum GateType<T> {
-    X,
-    Y,
-    Z,
-    H,
-    CNot,
-    U(T),
-}
-
 #[cfg(test)]
 mod tests {
     use num_complex::Complex64;
@@ -160,44 +155,44 @@ mod tests {
     #[test]
     fn test_mul() {
         let a = ComplexDoubleMatrix {
-            size: [3, 4],
+            size: [4,3],
             data: vec![
                 1.0.into(),
-                5.0.into(),
-                9.0.into(),
-                2.0.into(),
-                6.0.into(),
-                10.0.into(),
-                3.0.into(),
-                7.0.into(),
-                11.0.into(),
                 4.0.into(),
+                7.0.into(),
+                10.0.into(),
+                2.0.into(),
+                5.0.into(),
                 8.0.into(),
+                11.0.into(),
+                3.0.into(),
+                6.0.into(),
+                9.0.into(),
                 12.0.into(),
             ],
         };
         let b = ComplexDoubleMatrix {
-            size: [2, 3],
+            size: [3, 2],
             data: vec![
                 1.0.into(),
-                4.0.into(),
-                2.0.into(),
-                5.0.into(),
                 3.0.into(),
+                5.0.into(),
+                2.0.into(),
+                4.0.into(),
                 6.0.into(),
             ],
         };
 
-        let c = a.mul(b);
+        let c = a.mul(Box::new(b));
         let ans: Vec<Complex64> = vec![
-            38.0.into(),
-            83.0.into(),
-            44.0.into(),
-            98.0.into(),
-            50.0.into(),
-            113.0.into(),
-            56.0.into(),
-            128.0.into(),
+            22.0.into(),
+            49.0.into(),
+            76.0.into(),
+            103.0.into(),
+            28.0.into(),
+            64.0.into(),
+            100.0.into(),
+            136.0.into(),
         ];
         assert_eq!(&ans, c.data());
     }
@@ -245,7 +240,7 @@ mod tests {
             data: vec![5.0.into(), 7.0.into(), 6.0.into(), 8.0.into()],
         };
 
-        let c = a.kron(b);
+        let c = a.kron(Box::new(b));
         let ans: Vec<Complex64> = vec![
             5.0.into(),
             7.0.into(),
