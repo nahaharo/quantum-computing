@@ -9,6 +9,7 @@ edition = "2018"
 cblas = "*"
 openblas-src = {git="https://github.com/blas-lapack-rs/openblas-src", features = ["system", "static"]}
 num-complex = "*"
+rand="*"
 
 [profile.dev]
 opt-level = 0               # Use slightly better optimizations.

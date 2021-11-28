@@ -15,6 +15,7 @@ pub trait Matrix {
     fn mul(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec>;
     fn scalmul(&self, scalar: Complex64) -> BoxMatrix<Self::Prec>;
     fn kron(&self, other: BoxMatrix<Self::Prec>) -> BoxMatrix<Self::Prec>;
+    fn norm(&self) -> f64;
     fn at(&self, i: u32, j: u32) -> Self::Prec;
     fn row(&self, i: u32) -> Vec<Self::Prec>;
     fn col(&self, j: u32) -> Vec<Self::Prec>;
@@ -117,6 +118,15 @@ impl Matrix for ComplexDoubleMatrix {
             ],
             data: ans,
         })
+    }
+
+    fn norm(&self) -> f64 {
+        use cblas::zdotc_sub;
+        let mut val: Vec<Complex64> = vec![0.0.into(); 1];
+        unsafe {
+            zdotc_sub(self.data.len() as i32, &*self.data, 1, &*self.data, 1, &mut *val);
+        }
+        val[0].norm().sqrt()
     }
 
     fn at(&self, i: u32, j: u32) -> Complex64 {
@@ -260,6 +270,18 @@ mod tests {
             32.0.into(),
         ];
         assert_eq!(&ans, c.data());
+    }
+
+    #[test]
+    fn test_norm() {
+        let a = ComplexDoubleMatrix {
+            size: [2,1],
+            data: vec![
+                3.0.into(),
+                4.0.into(),
+            ],
+        };
+        assert_eq!(a.norm(), 5.);
     }
 
     #[test]

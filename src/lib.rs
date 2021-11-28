@@ -5,6 +5,7 @@ use matrix::{ComplexDoubleMatrix, Matrix};
 
 use matrix::BoxMatrix;
 use num_complex::Complex64;
+use rand::Rng;
 
 pub mod matrix;
 // max 32 bit(maximum of int)
@@ -82,7 +83,7 @@ impl Executer<Complex64> {
                 .push(i);
         }
         let val = map.drain().into_iter().map(|(_, mut v)| {
-            for i in oper.operand.iter() {
+            for i in oper.operand.iter().rev() {
                 let mask = 1<<i;
                 v.sort_by(|x, y| (x&mask).cmp(&(y&mask)));
             }
@@ -113,6 +114,33 @@ impl Executer<Complex64> {
             }
         )
     }
+
+    pub fn measure(&mut self, bit: u32) -> bool{
+        use rand::thread_rng;
+        let mut rng = thread_rng();
+        let mask: u32 = 1<<bit;
+        let one : Vec<_> = self.state.data().into_iter().enumerate().filter(|(idx, x)| ((idx.clone() as u32) & mask)> 0).map(|(_,x)| x.clone()).collect();
+        let one = ComplexDoubleMatrix {
+            size: [self.state.size()[0]/2, 1],
+            data: one
+        };
+        let zero: Vec<_> = self.state.data().into_iter().enumerate().filter(|(idx, x)| ((idx.clone() as u32) & mask)==0).map(|(_,x)| x.clone()).collect();
+        let zero = ComplexDoubleMatrix {
+            size: [self.state.size()[0]/2, 1],
+            data: zero
+        };
+        let t: f64 = rng.gen_range(0.0..1.0);
+        let prob_one = (one.norm()).powi(2);
+        if t < prob_one {
+            let one = one.scalmul((1./one.norm()).into());
+            self.state = one;
+            return true
+        } else {
+            let zero = zero.scalmul((1./zero.norm()).into());
+            self.state = zero;
+            return false
+        }
+    }
 }
 
 pub(crate) struct QuantumOper<T> {
@@ -142,8 +170,8 @@ mod tests {
             state: Box::new(
                 ComplexDoubleMatrix {
                     size: [4, 1],
-                    data: vec![Complex64::from(1.0),
-                    Complex64::from(1.0),
+                    data: vec![Complex64::from(0.0),
+                    Complex64::from(0.0),
                     Complex64::from(1.0),
                     Complex64::from(0.0)]
                 }
@@ -152,7 +180,14 @@ mod tests {
         exc.apply(QuantumOper{
             operand: vec![1,0],
             oper_type: GateType::CNot,
-        })
+        });
+        let ans: Vec<Complex64> = vec![
+            0.0.into(),
+            0.0.into(),
+            0.0.into(),
+            1.0.into(),
+        ];
+        assert_eq!(&ans, exc.state.data());
     }
 
     #[test]
@@ -164,19 +199,19 @@ mod tests {
                     data: vec![
                         Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
                         Complex64::from(0.0),
-                        Complex64::from(1.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
                         Complex64::from(0.0)
                     ]
                 }
@@ -186,11 +221,88 @@ mod tests {
             operand: vec![0],
             oper_type: GateType::H,
         });
+        exc.apply(QuantumOper{
+            operand: vec![1],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![2],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![3],
+            oper_type: GateType::H,
+        });
         println!("{:?}", &exc.state.data());
         exc.apply(QuantumOper{
             operand: vec![0],
             oper_type: GateType::H,
         });
+        exc.apply(QuantumOper{
+            operand: vec![1],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![2],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![3],
+            oper_type: GateType::H,
+        });
         println!("{:?}", &exc.state.data());
+    }
+
+    #[test]
+    fn test_apply3() {
+        let mut exc = Executer {
+            state: Box::new(
+                ComplexDoubleMatrix {
+                    size: [4, 1],
+                    data: vec![
+                        Complex64::from(1.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                    ]
+                }
+            )
+        };
+        exc.apply(QuantumOper{
+            operand: vec![0],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![0,1],
+            oper_type: GateType::CNot,
+        });
+        println!("{:?}", &exc.state.data());
+    }
+
+    #[test]
+    fn test_measure() {
+        let mut exc = Executer {
+            state: Box::new(
+                ComplexDoubleMatrix {
+                    size: [4, 1],
+                    data: vec![
+                        Complex64::from(1.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                        Complex64::from(0.0),
+                    ]
+                }
+            )
+        };
+        exc.apply(QuantumOper{
+            operand: vec![0],
+            oper_type: GateType::H,
+        });
+        exc.apply(QuantumOper{
+            operand: vec![0,1],
+            oper_type: GateType::CNot,
+        });
+        println!("{:?}", &exc.measure(0));
+        println!("{:?}", &exc.measure(0));
     }
 }
