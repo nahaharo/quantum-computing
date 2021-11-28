@@ -233,7 +233,7 @@ mod tests {
             operand: vec![3],
             oper_type: GateType::H,
         });
-        println!("{:?}", &exc.state.data());
+        // println!("{:?}", &exc.state.data());
         exc.apply(QuantumOper{
             operand: vec![0],
             oper_type: GateType::H,
@@ -250,7 +250,12 @@ mod tests {
             operand: vec![3],
             oper_type: GateType::H,
         });
-        println!("{:?}", &exc.state.data());
+        // println!("{:?}", &exc.state.data());
+        let data = exc.state.data();
+        assert!(data[0].norm() > 0.99.into());
+        for i in 1..16 {
+            assert!(data[i].norm() < 0.01.into());
+        }
     }
 
     #[test]
@@ -276,7 +281,8 @@ mod tests {
             operand: vec![0,1],
             oper_type: GateType::CNot,
         });
-        println!("{:?}", &exc.state.data());
+        assert_eq!(exc.state.data()[1], 0.0.into());
+        assert_eq!(exc.state.data()[2], 0.0.into());
     }
 
     #[test]
@@ -302,7 +308,8 @@ mod tests {
             operand: vec![0,1],
             oper_type: GateType::CNot,
         });
-        println!("{:?}", &exc.measure(0));
-        println!("{:?}", &exc.measure(0));
+        let m1 = &exc.measure(0);
+        let m2 = &exc.measure(0);
+        assert!(!(m1^m2));
     }
 }
